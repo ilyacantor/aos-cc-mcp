@@ -23,8 +23,8 @@ class TestSessionSummaryHappyPath:
         for key in [
             "session_id", "project_dir", "start_time", "end_time",
             "duration_minutes", "user_prompt_count", "tool_call_count",
-            "file_edit_count", "bash_command_count", "first_prompt",
-            "files_touched", "bash_commands", "anomaly_count",
+            "file_edit_count", "bash_command_count", "commit_count",
+            "first_prompt", "files_touched", "bash_commands", "anomaly_count",
         ]:
             assert key in result, f"Missing key: {key}"
 
@@ -35,6 +35,17 @@ class TestSessionSummaryHappyPath:
     def test_bash_commands_max_50(self) -> None:
         result = session_summary("test-long")
         assert len(result["bash_commands"]) <= 50
+
+
+class TestSessionSummaryCommitCount:
+    def test_commit_count_is_int(self) -> None:
+        result = session_summary("test-short")
+        assert isinstance(result["commit_count"], int)
+        assert result["commit_count"] >= 0
+
+    def test_commit_count_on_medium_fixture(self) -> None:
+        result = session_summary("test-medium")
+        assert isinstance(result["commit_count"], int)
 
 
 class TestSessionSummaryEdgeCases:

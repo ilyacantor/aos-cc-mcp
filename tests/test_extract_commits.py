@@ -59,6 +59,56 @@ class TestExtractCommitsNoCommits:
         assert commits == []
 
 
+class TestExtractCommitsDateRange:
+    """Fix 1: naive ISO strings in date-range mode must not crash."""
+
+    def test_naive_date_range_no_crash(self) -> None:
+        result = extract_commits(after="2020-01-01T00:00:00", before="2099-12-31T23:59:59")
+        assert isinstance(result, list)
+
+
+class TestExtractCommitsRootCommit:
+    """Fix 4: root-commit format must be parsed."""
+
+    def test_root_commit_regex(self) -> None:
+        from aos_cc_mcp.tools import _COMMIT_HASH_RE
+        # Normal format
+        m = _COMMIT_HASH_RE.search("[master abc1234] fix lint")
+        assert m and m.group(1) == "abc1234"
+        # Root-commit format
+        m = _COMMIT_HASH_RE.search("[master (root-commit) a2c6d25] Phase 1a")
+        assert m and m.group(1) == "a2c6d25"
+        # Branch with slashes
+        m = _COMMIT_HASH_RE.search("[dev/feature deadbeef] some change")
+        assert m and m.group(1) == "deadbeef"
+
+
+class TestExtractCommitsRepoPath:
+    """Fix 5: repo path extraction from cd prefix in bash commands."""
+
+    def test_cd_prefix_extraction(self) -> None:
+        from aos_cc_mcp.tools import _extract_repo_from_command
+        assert _extract_repo_from_command(
+            "cd ~/code/foo && git commit -m 'test'", None
+        ) == str(Path.home() / "code" / "foo")
+
+    def test_absolute_cd_prefix(self) -> None:
+        from aos_cc_mcp.tools import _extract_repo_from_command
+        assert _extract_repo_from_command(
+            "cd /absolute/path && git commit -m 'test'", None
+        ) == "/absolute/path"
+
+    def test_no_cd_prefix_uses_fallback(self) -> None:
+        from aos_cc_mcp.tools import _extract_repo_from_command
+        assert _extract_repo_from_command(
+            "git commit -m 'test'", "/fallback/dir"
+        ) == "/fallback/dir"
+
+    def test_no_cd_no_fallback(self) -> None:
+        from aos_cc_mcp.tools import _extract_repo_from_command
+        assert _extract_repo_from_command("git commit -m 'test'", None) is None
+
+
 class TestExtractCommitsTierRegistration:
     def test_registered_at_tier_0(self) -> None:
         assert get_tool_tier("extract_commits") == Tier.T0

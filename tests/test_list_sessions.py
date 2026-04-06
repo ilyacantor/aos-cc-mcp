@@ -23,6 +23,12 @@ class TestListSessionsHappyPath:
         assert "project_dir" in session
         assert "file_bytes" in session
         assert isinstance(session["file_bytes"], int)
+        assert "file_line_count" in session
+        assert isinstance(session["file_line_count"], int)
+        assert "approximate_end_time" in session
+        # Old field names must not appear
+        assert "event_count" not in session
+        assert "end_time" not in session
 
     def test_project_filter(self) -> None:
         result = list_sessions(project_filter="-test-project")
@@ -43,6 +49,18 @@ class TestListSessionsHardCap:
     def test_hard_cap_200(self) -> None:
         result = list_sessions(limit=999)
         assert len(result) <= 200
+
+
+class TestListSessionsDatetimeNaive:
+    """Fix 1: naive ISO strings must not crash when compared to aware timestamps."""
+
+    def test_naive_after_before_no_crash(self) -> None:
+        result = list_sessions(after="2020-01-01T00:00:00", before="2099-12-31T23:59:59")
+        assert isinstance(result, list)
+
+    def test_aware_after_before_no_crash(self) -> None:
+        result = list_sessions(after="2020-01-01T00:00:00+00:00", before="2099-12-31T23:59:59+00:00")
+        assert isinstance(result, list)
 
 
 class TestListSessionsTierRegistration:

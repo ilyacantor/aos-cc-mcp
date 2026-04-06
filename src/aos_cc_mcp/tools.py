@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -99,6 +100,31 @@ def _event_type_name(event: Event) -> str:
     return type(event).__name__
 
 
+def _classify_unknown_subtype(event: Unknown) -> str:
+    """Determine the subtype of an Unknown event from its raw dict structure."""
+    raw = event.raw
+    event_type = raw.get("type", "")
+
+    # CC harness internal types
+    if event_type in ("custom-title", "agent-name", "queue-operation"):
+        return "harness_internal"
+
+    # Attachment deltas (deferred tools, MCP instructions, skill deltas)
+    if event_type == "attachment" or raw.get("attachment"):
+        return "attachment_delta"
+
+    # Assistant messages (text or thinking)
+    if event_type == "assistant":
+        content = raw.get("message", {}).get("content", [])
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "thinking":
+                    return "assistant_thinking"
+        return "assistant_text"
+
+    return "other"
+
+
 def _event_to_summary_dict(event: Event, index: int) -> dict[str, Any]:
     """Serialize event to a compact dict (no bodies) for 'events' verbosity."""
     d: dict[str, Any] = {
@@ -108,10 +134,14 @@ def _event_to_summary_dict(event: Event, index: int) -> dict[str, Any]:
     }
     if isinstance(event, ToolCall):
         d["tool_name"] = event.tool_name
+        d["tool_use_id"] = _get_tool_use_id(event)
     elif isinstance(event, BashOutput):
         d["tool_name"] = "Bash"
+        d["tool_use_id"] = _get_tool_use_id(event)
     elif isinstance(event, ToolResult):
-        d["tool_name"] = None  # ToolResult doesn't carry tool_name directly
+        d["tool_use_id"] = _get_tool_use_id(event)
+    elif isinstance(event, Unknown):
+        d["subtype"] = _classify_unknown_subtype(event)
     return d
 
 
@@ -163,11 +193,17 @@ def _extract_searchable_text(event: Event) -> str:
 
 
 def _parse_iso(dt_str: str | None) -> datetime | None:
-    """Parse an ISO 8601 datetime string, tolerant of format variants."""
+    """Parse an ISO 8601 datetime string, tolerant of format variants.
+
+    Always returns UTC-aware datetimes. Naive inputs are assumed UTC.
+    """
     if not dt_str:
         return None
     try:
-        return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except (ValueError, TypeError):
         return None
 
@@ -186,18 +222,19 @@ def _session_metadata(path: Path, project_dir: str) -> dict[str, Any] | None:
     timestamps = [t for t in timestamps if t is not None]
 
     start_time = min(timestamps).isoformat() if timestamps else None
-    # For header scan, end_time is approximate (from first 50 lines)
-    end_time = max(timestamps).isoformat() if timestamps else None
+    # For header scan, end_time is approximate (from first 50 lines only)
+    approx_end = max(timestamps).isoformat() if timestamps else None
 
     first_prompt = user_prompts[0].text[:100] if user_prompts else None
     file_bytes = path.stat().st_size
+    line_count = sum(1 for _ in open(path, "r", encoding="utf-8", errors="replace"))
 
     return {
         "session_id": path.stem,
         "project_dir": project_dir,
         "start_time": start_time,
-        "end_time": end_time,
-        "event_count": file_bytes // 200,  # rough estimate from header scan
+        "approximate_end_time": approx_end,
+        "file_line_count": line_count,
         "user_prompt_count": len(user_prompts),
         "tool_call_count": len(tool_calls),
         "first_prompt_preview": first_prompt,
@@ -225,6 +262,14 @@ def _full_session_stats(events: list[Event], path: Path, project_dir: str) -> di
     files_touched = list(dict.fromkeys(e.file_path for e in file_edits))[:50]
     unique_cmds = list(dict.fromkeys(e.command[:100] for e in bash_cmds))[:50]
 
+    # Count successful commits
+    commit_count = 0
+    for idx, e in enumerate(events):
+        if _is_git_commit_bash(e):
+            result = _find_correlated_result(events, e, idx)
+            if result is None or result.success or "failed" not in result.content.lower():
+                commit_count += 1
+
     return {
         "session_id": path.stem,
         "project_dir": project_dir,
@@ -236,6 +281,7 @@ def _full_session_stats(events: list[Event], path: Path, project_dir: str) -> di
         "tool_call_count": len(tool_calls),
         "file_edit_count": len(file_edits),
         "bash_command_count": len(bash_cmds),
+        "commit_count": commit_count,
         "first_prompt": user_prompts[0].text[:500] if user_prompts else None,
         "last_prompt": user_prompts[-1].text[:500] if user_prompts else None,
         "files_touched": files_touched,
@@ -283,6 +329,9 @@ def list_sessions(
 
     Returns:
         List of session metadata dicts sorted by start_time descending.
+        file_line_count is the raw JSONL line count from a lightweight scan;
+        for the true parsed event count, call session_summary.
+        approximate_end_time reflects only the first 50 lines of the session.
     """
     limit = min(limit, 200)
     after_dt = _parse_iso(after)
@@ -547,6 +596,27 @@ def extract_commits(
     return commits
 
 
+# Matches [branch hash] or [branch (root-commit) hash] in git commit output
+_COMMIT_HASH_RE = re.compile(r"\[[\w/.-]+(?:\s+\([^)]+\))?\s+([0-9a-f]{7,40})\]")
+
+# Matches cd <path> && or cd <path> ; prefix in bash commands
+_CD_PREFIX_RE = re.compile(r"cd\s+([^\s&;|]+)\s*(?:&&|;)")
+
+
+def _extract_repo_from_command(command: str, fallback: str | None) -> str | None:
+    """Extract the repo path from a bash command's cd prefix.
+
+    If the command starts with 'cd ~/code/foo && git commit ...', returns the
+    expanded path. Falls back to the provided default if no cd prefix found.
+    """
+    m = _CD_PREFIX_RE.search(command)
+    if m:
+        raw_path = m.group(1)
+        expanded = Path(raw_path).expanduser()
+        return str(expanded)
+    return fallback
+
+
 def _extract_commits_from_events(events: list[Event], session_id: str) -> list[dict[str, Any]]:
     """Find git commits in a parsed event list."""
     commits: list[dict[str, Any]] = []
@@ -559,10 +629,10 @@ def _extract_commits_from_events(events: list[Event], session_id: str) -> list[d
         result = _find_correlated_result(events, event, i)
         result_text = result.content if result else ""
 
-        # Parse commit hash from output (e.g., "[master abc1234] message")
+        # Parse commit hash from output — handles root-commit and normal format
         commit_hash = None
         message = None
-        hash_match = re.search(r"\[[\w/.-]+\s+([0-9a-f]{7,40})\]", result_text)
+        hash_match = _COMMIT_HASH_RE.search(result_text)
         if hash_match:
             commit_hash = hash_match.group(1)
         # Message is often after the hash bracket
@@ -570,8 +640,9 @@ def _extract_commits_from_events(events: list[Event], session_id: str) -> list[d
         if msg_match:
             message = msg_match.group(1).strip()
 
-        # Infer repo from cwd in raw event data
-        repo = event.raw.get("cwd") or event.raw.get("message", {}).get("cwd")
+        # Infer repo: first try cd prefix in the command, then cwd from raw
+        raw_cwd = event.raw.get("cwd") or event.raw.get("message", {}).get("cwd")
+        repo = _extract_repo_from_command(event.command, raw_cwd)
 
         # Collect preceding FileEdit events as files_changed
         files_changed: list[str] = []
@@ -663,13 +734,77 @@ def detect_anomalies(
 # Tool 7: diff_intent_vs_execution
 # ---------------------------------------------------------------------------
 
-# Pattern for extracting file/identifier references from prompt text
-_FILE_PATTERN = re.compile(
-    r"""(?:[\w./-]+\.(?:py|ts|tsx|js|jsx|md|yaml|yml|json|toml|css|html|sh|sql|csv))"""
-    r"""|(?:(?<![a-z])(?:[A-Z][a-z]+){2,})"""  # CamelCase
-    r"""|(?:(?<![a-zA-Z])[a-z][a-z_]{3,}[a-z](?![a-zA-Z]))""",  # snake_case 4+ chars
-    re.VERBOSE,
+# Fallback regex: only matches file paths with known extensions
+_FILE_EXT_PATTERN = re.compile(
+    r"[\w./-]+\.(?:py|ts|tsx|js|jsx|md|yaml|yml|json|toml|css|html|sh|sql|csv)"
 )
+
+
+def _decode_project_dir(project_dir_name: str) -> Path | None:
+    """Decode a CC project directory name back to a filesystem path.
+
+    CC encodes paths by replacing '/' with '-', so '-home-ilyac-code-console'
+    becomes '/home/ilyac/code/console'. Returns None if the decoded path
+    does not exist on disk.
+    """
+    if not project_dir_name or not project_dir_name.startswith("-"):
+        return None
+    decoded = "/" + project_dir_name[1:].replace("-", "/")
+    p = Path(decoded)
+    if p.is_dir():
+        return p
+    return None
+
+
+def _git_ls_files(repo_path: Path) -> set[str] | None:
+    """Run git ls-files in a repo and return the set of tracked file paths.
+
+    This is the single allowed shell exception for Tier 0 tools — documented
+    in CLAUDE.md under 'Tier 0 shell exceptions'. Returns None on failure.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return None
+        files = set(result.stdout.strip().splitlines())
+        return files if files else None
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+
+
+def _extract_mentions_via_lookup(prompt: str, tracked_files: set[str]) -> list[str]:
+    """Match prompt text against a set of tracked file paths.
+
+    A file is 'mentioned' if its basename or relative path appears as a
+    substring in the prompt.
+    """
+    basenames: dict[str, str] = {}  # basename -> relative path
+    for f in tracked_files:
+        bn = Path(f).name
+        basenames[bn] = f
+
+    mentioned: list[str] = []
+    seen: set[str] = set()
+
+    # Check relative paths first (more specific)
+    for relpath in tracked_files:
+        if relpath in prompt and relpath not in seen:
+            mentioned.append(relpath)
+            seen.add(relpath)
+
+    # Then check basenames
+    for bn, relpath in basenames.items():
+        if bn in prompt and relpath not in seen:
+            mentioned.append(relpath)
+            seen.add(relpath)
+
+    return mentioned
 
 
 @mcp.tool()
@@ -677,15 +812,15 @@ def diff_intent_vs_execution(session_id: str) -> dict[str, Any]:
     """Compare what a session's first prompt requested vs what it actually did.
 
     Read-only, Tier 0. Always available in all modes.
-    This is a heuristic signal generator — regex-based extraction
-    with expected false positives. The coordinator interprets the results.
+    Uses git ls-files lookup when possible, falls back to filename regex.
+    The extraction_mode field indicates which approach was used.
 
     Args:
         session_id: The session UUID (filename stem).
 
     Returns:
-        Dict with intent vs execution comparison, file set differences, and a
-        confidence field (always "heuristic" in this phase).
+        Dict with intent vs execution comparison, file set differences,
+        extraction_mode, and confidence field.
     """
     path = _find_session_file(session_id)
     if path is None:
@@ -696,12 +831,24 @@ def diff_intent_vs_execution(session_id: str) -> dict[str, Any]:
     except Exception as exc:
         return {"error": "parse_failed", "session_id": session_id, "detail": str(exc)}
 
+    project_dir = path.parent.name
     user_prompts = [e for e in events if isinstance(e, UserPrompt)]
     first_prompt = user_prompts[0].text if user_prompts else ""
 
-    # Extract file/identifier references from prompt
-    mentions = _FILE_PATTERN.findall(first_prompt)
-    files_mentioned = list(dict.fromkeys(mentions))
+    # Try git ls-files lookup first
+    extraction_mode = "filename_regex_fallback"
+    repo_path = _decode_project_dir(project_dir)
+    tracked_files = None
+    if repo_path:
+        tracked_files = _git_ls_files(repo_path)
+
+    if tracked_files:
+        extraction_mode = "git_ls_files"
+        files_mentioned = _extract_mentions_via_lookup(first_prompt, tracked_files)
+    else:
+        # Fallback: file-extension-only regex (no CamelCase/snake_case)
+        mentions = _FILE_EXT_PATTERN.findall(first_prompt)
+        files_mentioned = list(dict.fromkeys(mentions))
 
     # Files actually touched
     file_edits = [e for e in events if isinstance(e, FileEdit)]
@@ -731,5 +878,6 @@ def diff_intent_vs_execution(session_id: str) -> dict[str, Any]:
         "files_touched_not_in_prompt": touched_not_in_prompt,
         "bash_commands_run": bash_commands,
         "commits_made": commits_made,
+        "extraction_mode": extraction_mode,
         "confidence": "heuristic",
     }

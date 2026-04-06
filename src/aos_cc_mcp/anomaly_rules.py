@@ -132,19 +132,48 @@ _SKIP_MARKERS = [
     "@pytest.mark.skip",
     "@pytest.mark.xfail",
     ".skip(",
-    "xit(",
     "test.skip(",
     "describe.skip(",
 ]
 
+# File path patterns that indicate a test file
+_TEST_FILE_PATTERNS = re.compile(
+    r"(?:^|/)"            # start or path separator
+    r"(?:"
+    r"tests?/"            # test/ or tests/ directory
+    r"|test_[^/]+"        # test_*.py style files
+    r"|[^/]+_test\.py"    # *_test.py style files
+    r"|[^/]+\.test\.tsx?" # *.test.ts, *.test.tsx
+    r"|[^/]+\.spec\.tsx?" # *.spec.ts, *.spec.tsx
+    r")"
+)
+
+
+def _is_test_file(file_path: str) -> bool:
+    """Check if a file path matches test file patterns."""
+    return bool(_TEST_FILE_PATTERNS.search(file_path))
+
 
 def rule_test_skip_added(events: list[Event], session_id: str) -> list[dict[str, Any]]:
-    """A FileEdit whose diff contains test skip/xfail markers."""
+    """A FileEdit whose diff contains test skip/xfail markers.
+
+    Only fires on test files (path contains test/ or tests/, or matches
+    test file naming patterns). Excludes fixture files.
+    """
     anomalies: list[dict[str, Any]] = []
 
     for i, event in enumerate(events):
         if not isinstance(event, FileEdit):
             continue
+
+        # Only fire on test files
+        if not _is_test_file(event.file_path):
+            continue
+
+        # Exclude fixture files
+        if "fixtures/" in event.file_path or "fixture/" in event.file_path:
+            continue
+
         diff_text = event.after  # The "new" content from the edit
         for marker in _SKIP_MARKERS:
             if marker in diff_text:
@@ -260,14 +289,44 @@ def rule_scope_expansion(events: list[Event], session_id: str) -> list[dict[str,
 # Rule 5: silent_error
 # ---------------------------------------------------------------------------
 
+# Operational error patterns that are expected CC behavior, not silent errors
+_OPERATIONAL_NOISE_PATTERNS = [
+    "file does not exist",
+    "file not found",
+    "no such file or directory",
+    "command not found",
+    "does not have any commits yet",
+    "not a git repository",
+    "nothing to commit",
+    "no matches found",
+    "file has not been read yet",
+    "cancelled: parallel tool call",
+]
+
+
+def _is_operational_noise(error_text: str) -> bool:
+    """Check if an error matches expected CC operational patterns."""
+    lower = error_text.lower()
+    return any(pattern in lower for pattern in _OPERATIONAL_NOISE_PATTERNS)
+
+
 def rule_silent_error(events: list[Event], session_id: str) -> list[dict[str, Any]]:
-    """A ToolResult with error, followed by a ToolCall (agent continued past the error)."""
+    """A ToolResult with error, followed by a ToolCall (agent continued past the error).
+
+    Excludes expected CC operational errors (file not found, command not found, etc.)
+    that are normal probing behavior rather than silent failures.
+    """
     anomalies: list[dict[str, Any]] = []
 
     for i, event in enumerate(events):
         if not isinstance(event, ToolResult):
             continue
         if event.success and not event.error:
+            continue
+
+        # Skip operational noise
+        error_text = event.error or event.content
+        if _is_operational_noise(error_text):
             continue
 
         # Check next event (skip other ToolResults)

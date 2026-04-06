@@ -39,6 +39,9 @@ Tier 3 is not "deferred." It is prohibited at the constitutional level. Adding a
 ### Auth footgun — read before enabling network transport
 When `AOS_CC_MCP_TOKEN` is unset, the server accepts all connections with zero authentication. This is acceptable for local stdio transport during development. It is a critical vulnerability if the server is exposed via HTTP, Tailscale Funnel, or any other network transport without setting the token. Phase 2 enables network transport. Before enabling any network transport, verify `AOS_CC_MCP_TOKEN` is set to a non-empty value. The server should refuse to start with network transport enabled while the token is unset — this check will be added in Phase 2.
 
+### Tier 0 Shell Exceptions
+`diff_intent_vs_execution` shells out to `git ls-files` in the session's project directory to build a lookup set of tracked file paths. This is a read-only operation with no side effects. It is the only place in the codebase where a Tier 0 tool executes a shell command, and it is whitelisted by design for this specific purpose. If the `git` call fails or returns nothing, the tool falls back to filename-regex extraction. No other shell commands are permitted in Tier 0 tools.
+
 ### Phase-Gating
 This repo is phase-gated. Each phase lands as its own prompt, its own CC session, its own review. Phases are not batched. Any future CC session working on this repo must read this CLAUDE.md at startup and must not lift phase or tier restrictions without an explicit prompt authorizing it.
 
@@ -60,7 +63,7 @@ This repo is phase-gated. Each phase lands as its own prompt, its own CC session
 
 All tools are Tier 0 (read-only, always available). Registered via `register_tool_tier()` in `src/aos_cc_mcp/tools.py`.
 
-### Completed (Phase 1a + 1b + 2a)
+### Completed (Phase 1a + 1b + 2a + 2a.1)
 - Repo scaffolding (pyproject.toml, src layout, tests)
 - FastMCP server skeleton with stdio transport
 - JSONL session log parser (reads real CC session files, produces typed events)
@@ -68,7 +71,8 @@ All tools are Tier 0 (read-only, always available). Registered via `register_too
 - Middleware wiring (audit + mode enforcement on all tool calls)
 - 7 Tier 0 read-only tools with full test coverage
 - Anomaly detection engine (7 rules, hand-crafted fixtures)
-- Tests against real fixture data (139 tests)
+- Phase 2a.1 reshape: datetime fixes, anomaly false positive reduction, git ls-files lookup for diff_intent_vs_execution, field renames, commit_count, tool_use_id correlation
+- 175 tests against real fixture data
 
 ### Out of scope (deferred to later phases)
 - Network (no Tailscale, no HTTP exposure)

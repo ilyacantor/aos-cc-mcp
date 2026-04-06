@@ -55,6 +55,80 @@ class TestReadSessionFullMode:
             assert len(serialized) <= 100_000
 
 
+class TestReadSessionToolUseId:
+    """Fix 9: ToolCall and ToolResult events include tool_use_id at events verbosity."""
+
+    def test_tool_call_has_tool_use_id_field(self) -> None:
+        result = read_session("test-short", verbosity="events")
+        tool_calls = [e for e in result if e["event_type"] == "ToolCall"]
+        if tool_calls:
+            assert "tool_use_id" in tool_calls[0]
+
+    def test_tool_result_has_tool_use_id_field(self) -> None:
+        result = read_session("test-short", verbosity="events")
+        tool_results = [e for e in result if e["event_type"] == "ToolResult"]
+        if tool_results:
+            assert "tool_use_id" in tool_results[0]
+
+    def test_bash_output_has_tool_use_id_field(self) -> None:
+        result = read_session("test-short", verbosity="events")
+        bash_events = [e for e in result if e["event_type"] == "BashOutput"]
+        if bash_events:
+            assert "tool_use_id" in bash_events[0]
+
+
+class TestReadSessionUnknownSubtype:
+    """Fix 9: Unknown events include a subtype field at events verbosity."""
+
+    def test_unknown_events_have_subtype(self) -> None:
+        result = read_session("test-medium", verbosity="events")
+        unknowns = [e for e in result if e["event_type"] == "Unknown"]
+        for u in unknowns:
+            assert "subtype" in u
+            assert u["subtype"] in (
+                "assistant_text", "assistant_thinking", "harness_internal",
+                "attachment_delta", "other",
+            )
+
+    def test_assistant_text_subtype(self) -> None:
+        """Assistant text blocks should get subtype 'assistant_text'."""
+        from aos_cc_mcp.events import Unknown
+        from aos_cc_mcp.tools import _classify_unknown_subtype
+        event = Unknown(
+            timestamp="2026-01-01T00:00:00Z",
+            raw={"type": "assistant", "message": {"content": [{"type": "text", "text": "hello"}]}},
+        )
+        assert _classify_unknown_subtype(event) == "assistant_text"
+
+    def test_assistant_thinking_subtype(self) -> None:
+        from aos_cc_mcp.events import Unknown
+        from aos_cc_mcp.tools import _classify_unknown_subtype
+        event = Unknown(
+            timestamp="2026-01-01T00:00:00Z",
+            raw={"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": "..."}]}},
+        )
+        assert _classify_unknown_subtype(event) == "assistant_thinking"
+
+    def test_harness_internal_subtype(self) -> None:
+        from aos_cc_mcp.events import Unknown
+        from aos_cc_mcp.tools import _classify_unknown_subtype
+        for event_type in ("custom-title", "agent-name", "queue-operation"):
+            event = Unknown(timestamp=None, raw={"type": event_type})
+            assert _classify_unknown_subtype(event) == "harness_internal"
+
+    def test_attachment_delta_subtype(self) -> None:
+        from aos_cc_mcp.events import Unknown
+        from aos_cc_mcp.tools import _classify_unknown_subtype
+        event = Unknown(timestamp=None, raw={"type": "attachment", "attachment": {"some": "data"}})
+        assert _classify_unknown_subtype(event) == "attachment_delta"
+
+    def test_other_subtype(self) -> None:
+        from aos_cc_mcp.events import Unknown
+        from aos_cc_mcp.tools import _classify_unknown_subtype
+        event = Unknown(timestamp=None, raw={"type": "something_new"})
+        assert _classify_unknown_subtype(event) == "other"
+
+
 class TestReadSessionEdgeCases:
     def test_missing_session(self) -> None:
         result = read_session("nonexistent-id")

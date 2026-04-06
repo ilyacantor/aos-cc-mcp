@@ -57,6 +57,67 @@ class TestRuleTestSkipAdded:
         results = rule_test_skip_added(events, "test")
         assert results == []
 
+    def test_sys_exit_in_non_test_file_not_flagged(self) -> None:
+        """Fix 2: sys.exit(1) in a non-test file must not trigger."""
+        from aos_cc_mcp.events import FileEdit
+        events = [
+            FileEdit(
+                file_path="/code/src/server.py",
+                before="",
+                after="import sys\nsys.exit(1)\n",
+                timestamp="2026-01-01T00:00:00Z",
+                raw={},
+            ),
+        ]
+        results = rule_test_skip_added(events, "test")
+        assert results == []
+
+    def test_skip_marker_in_fixtures_not_flagged(self) -> None:
+        """Fix 2: skip markers in fixture files must not trigger."""
+        from aos_cc_mcp.events import FileEdit
+        events = [
+            FileEdit(
+                file_path="/code/tests/fixtures/test_skip_added.jsonl",
+                before="",
+                after='{"content": "@pytest.mark.skip"}',
+                timestamp="2026-01-01T00:00:00Z",
+                raw={},
+            ),
+        ]
+        results = rule_test_skip_added(events, "test")
+        assert results == []
+
+    def test_skip_marker_in_source_code_not_flagged(self) -> None:
+        """Fix 2: skip marker as a string in source code outside test dirs."""
+        from aos_cc_mcp.events import FileEdit
+        events = [
+            FileEdit(
+                file_path="/code/src/anomaly_rules.py",
+                before="",
+                after='_SKIP_MARKERS = ["@pytest.mark.skip", "@pytest.mark.xfail"]',
+                timestamp="2026-01-01T00:00:00Z",
+                raw={},
+            ),
+        ]
+        results = rule_test_skip_added(events, "test")
+        assert results == []
+
+    def test_legitimate_skip_in_test_file_flags(self) -> None:
+        """Fix 2: a real skip decorator in a test file should still flag."""
+        from aos_cc_mcp.events import FileEdit
+        events = [
+            FileEdit(
+                file_path="/code/tests/test_thing.py",
+                before="def test_something():",
+                after="@pytest.mark.skip\ndef test_something():",
+                timestamp="2026-01-01T00:00:00Z",
+                raw={},
+            ),
+        ]
+        results = rule_test_skip_added(events, "test")
+        assert len(results) == 1
+        assert results[0]["details"]["matched_marker"] == "@pytest.mark.skip"
+
 
 # --- Rule 3: verification_returned_empty ---
 
@@ -96,6 +157,99 @@ class TestRuleSilentError:
         events = _load("clean_session.jsonl")
         results = rule_silent_error(events, "test")
         assert results == []
+
+    def test_file_does_not_exist_not_flagged(self) -> None:
+        """Fix 3: 'File does not exist' is operational noise."""
+        from aos_cc_mcp.events import BashOutput, ToolResult
+        events = [
+            ToolResult(
+                content="File does not exist. Note: your current working directory is /code.",
+                success=False,
+                error="File does not exist. Note: your current working directory is /code.",
+                timestamp="2026-01-01T00:00:00Z",
+                raw={"message": {"content": [{"type": "tool_result", "tool_use_id": "t1"}]}},
+            ),
+            BashOutput(
+                command="ls",
+                stdout="",
+                stderr="",
+                exit_code=0,
+                timestamp="2026-01-01T00:00:01Z",
+                raw={"message": {"content": [{"type": "tool_use", "id": "t2"}]}},
+            ),
+        ]
+        results = rule_silent_error(events, "test")
+        assert results == []
+
+    def test_command_not_found_not_flagged(self) -> None:
+        """Fix 3: 'command not found' is operational noise."""
+        from aos_cc_mcp.events import BashOutput, ToolResult
+        events = [
+            ToolResult(
+                content="/bin/bash: line 1: tree: command not found",
+                success=False,
+                error="/bin/bash: line 1: tree: command not found",
+                timestamp="2026-01-01T00:00:00Z",
+                raw={"message": {"content": [{"type": "tool_result", "tool_use_id": "t1"}]}},
+            ),
+            BashOutput(
+                command="ls",
+                stdout="",
+                stderr="",
+                exit_code=0,
+                timestamp="2026-01-01T00:00:01Z",
+                raw={"message": {"content": [{"type": "tool_use", "id": "t2"}]}},
+            ),
+        ]
+        results = rule_silent_error(events, "test")
+        assert results == []
+
+    def test_no_commits_yet_not_flagged(self) -> None:
+        """Fix 3: 'does not have any commits yet' is operational noise."""
+        from aos_cc_mcp.events import BashOutput, ToolResult
+        events = [
+            ToolResult(
+                content="fatal: your current branch 'master' does not have any commits yet",
+                success=False,
+                error="fatal: your current branch 'master' does not have any commits yet",
+                timestamp="2026-01-01T00:00:00Z",
+                raw={"message": {"content": [{"type": "tool_result", "tool_use_id": "t1"}]}},
+            ),
+            BashOutput(
+                command="git add .",
+                stdout="",
+                stderr="",
+                exit_code=0,
+                timestamp="2026-01-01T00:00:01Z",
+                raw={"message": {"content": [{"type": "tool_use", "id": "t2"}]}},
+            ),
+        ]
+        results = rule_silent_error(events, "test")
+        assert results == []
+
+    def test_real_api_error_still_flagged(self) -> None:
+        """Fix 3: a genuine API error should still flag."""
+        from aos_cc_mcp.events import BashOutput, ToolResult
+        events = [
+            ToolResult(
+                content="HTTP 500: Internal Server Error from DCL",
+                success=False,
+                error="HTTP 500: Internal Server Error from DCL",
+                timestamp="2026-01-01T00:00:00Z",
+                raw={"message": {"content": [{"type": "tool_result", "tool_use_id": "t1"}]}},
+            ),
+            BashOutput(
+                command="python continue_work.py",
+                stdout="",
+                stderr="",
+                exit_code=0,
+                timestamp="2026-01-01T00:00:01Z",
+                raw={"message": {"content": [{"type": "tool_use", "id": "t2"}]}},
+            ),
+        ]
+        results = rule_silent_error(events, "test")
+        assert len(results) == 1
+        assert "HTTP 500" in results[0]["details"]["error"]
 
 
 # --- Rule 6: hook_bypass_attempt ---
@@ -157,6 +311,14 @@ class TestDetectAnomaliesInputValidation:
         result = detect_anomalies(session_id="nonexistent-id")
         assert isinstance(result, dict)
         assert result["error"] == "session_not_found"
+
+
+class TestDetectAnomaliesDateRange:
+    """Fix 1: naive ISO strings in date-range mode must not crash."""
+
+    def test_naive_date_range_no_crash(self) -> None:
+        result = detect_anomalies(after="2020-01-01T00:00:00", before="2099-12-31T23:59:59")
+        assert isinstance(result, list)
 
 
 class TestDetectAnomaliesTierRegistration:
