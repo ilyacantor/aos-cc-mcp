@@ -1,8 +1,7 @@
 """AOS CC MCP server.
 
-Phase 1b: security foundation wired in. Kill switch, bearer token auth,
-mode system (Plan/Approve/YOLO), and append-only audit log.
-Still zero tools registered — tools land in Phase 2+.
+Phase 2a: seven Tier 0 read tools registered on top of the Phase 1b
+security foundation (kill switch, auth, mode system, audit log).
 """
 
 from __future__ import annotations
@@ -49,6 +48,10 @@ def _build_server() -> FastMCP:
 
 
 mcp = _build_server()
+
+# Import tools module to trigger @mcp.tool() registration and register_tool_tier() calls.
+# This must happen AFTER mcp is created above.
+from . import tools as _tools  # noqa: E402, F401
 
 
 def main() -> None:

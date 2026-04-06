@@ -1,0 +1,7 @@
+{"type": "permission-mode", "permissionMode": "default", "sessionId": "uncommit-test"}
+{"type": "user", "message": {"role": "user", "content": "edit the config"}, "timestamp": "2026-04-06T10:00:00Z"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_edit1", "name": "Edit", "input": {"file_path": "/code/config.yaml", "old_string": "debug: false", "new_string": "debug: true"}}]}, "timestamp": "2026-04-06T10:01:00Z"}
+{"type": "user", "message": {"content": [{"tool_use_id": "toolu_edit1", "type": "tool_result", "content": [{"type": "text", "text": "File edited"}]}]}, "timestamp": "2026-04-06T10:01:01Z"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_edit2", "name": "Write", "input": {"file_path": "/code/notes.md", "content": "updated config"}}]}, "timestamp": "2026-04-06T10:01:10Z"}
+{"type": "user", "message": {"content": [{"tool_use_id": "toolu_edit2", "type": "tool_result", "content": [{"type": "text", "text": "File created"}]}]}, "timestamp": "2026-04-06T10:01:11Z"}
+{"type": "last-prompt", "timestamp": "2026-04-06T10:02:00Z"}

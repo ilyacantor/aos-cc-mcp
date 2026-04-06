@@ -67,6 +67,7 @@ class AuditMiddleware(Middleware):
                 operation=f"call_tool:{tool_name}",
                 mode=mode.value,
                 success=False,
+                details={"tier": "unregistered"},
                 error="tool not registered in tier registry — add register_tool_tier() call during tool definition",
             )
             raise PermissionError(
@@ -84,6 +85,7 @@ class AuditMiddleware(Middleware):
                 operation=f"call_tool:{tool_name}",
                 mode=mode.value,
                 success=False,
+                details={"tier": tier.value},
                 error=f"Tier {tier.value} is constitutionally prohibited",
             )
             raise PermissionError(
@@ -96,6 +98,7 @@ class AuditMiddleware(Middleware):
                 operation=f"call_tool:{tool_name}",
                 mode=mode.value,
                 success=False,
+                details={"tier": tier.value},
                 error=f"Tier {tier.value} blocked in {mode.value} mode",
             )
             raise PermissionError(

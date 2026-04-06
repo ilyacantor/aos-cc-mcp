@@ -1,0 +1,4 @@
+{"type": "permission-mode", "permissionMode": "default", "sessionId": "bypass-test"}
+{"type": "user", "message": {"role": "user", "content": "commit the changes"}, "timestamp": "2026-04-06T10:00:00Z"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_bash1", "name": "Bash", "input": {"command": "git commit --no-verify -m 'skip hooks'"}}]}, "timestamp": "2026-04-06T10:01:00Z"}
+{"type": "user", "message": {"content": [{"tool_use_id": "toolu_bash1", "type": "tool_result", "content": [{"type": "text", "text": "[master def5678] skip hooks"}]}]}, "timestamp": "2026-04-06T10:01:01Z"}

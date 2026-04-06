@@ -1,0 +1,5 @@
+{"type": "permission-mode", "permissionMode": "default", "sessionId": "clean-test"}
+{"type": "user", "message": {"role": "user", "content": "read the file"}, "timestamp": "2026-04-06T10:00:00Z"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_read1", "name": "Read", "input": {"file_path": "/code/main.py"}}]}, "timestamp": "2026-04-06T10:01:00Z"}
+{"type": "user", "message": {"content": [{"tool_use_id": "toolu_read1", "type": "tool_result", "content": [{"type": "text", "text": "def main():\n    print('hello')"}]}]}, "timestamp": "2026-04-06T10:01:01Z"}
+{"type": "last-prompt", "timestamp": "2026-04-06T10:02:00Z"}

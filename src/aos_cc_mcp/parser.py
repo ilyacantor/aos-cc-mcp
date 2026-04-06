@@ -26,17 +26,20 @@ from .events import (
 logger = logging.getLogger(__name__)
 
 
-def parse_session(path: str | Path) -> list[Event]:
+def parse_session(path: str | Path, *, max_lines: int | None = None) -> list[Event]:
     """Parse a JSONL session file into a list of Events.
 
     Every line produces exactly one event. Malformed JSON lines become
     Unknown events. Missing fields degrade gracefully with warnings.
+    If max_lines is set, only the first max_lines lines are parsed.
     """
     path = Path(path)
     events: list[Event] = []
 
     with path.open("r", encoding="utf-8") as f:
         for line_num, line in enumerate(f, start=1):
+            if max_lines is not None and line_num > max_lines:
+                break
             line = line.strip()
             if not line:
                 events.append(Unknown(timestamp=None, raw={"_empty_line": True, "_line_num": line_num}))

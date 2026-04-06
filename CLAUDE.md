@@ -44,25 +44,35 @@ This repo is phase-gated. Each phase lands as its own prompt, its own CC session
 
 ---
 
-## Current Phase: 1b — Security Foundation
+## Current Phase: 2a — Tier 0 Read Tools
 
-### In scope (Phase 1b)
-- Append-only audit log (all operations logged, no log mutation)
-- Kill switch env var (AOS_CC_MCP_DISABLED — server refuses to start when set)
-- Bearer token auth (AOS_CC_MCP_TOKEN env var — rejects unauthenticated HTTP requests)
-- Mode system (Plan/Approve/YOLO with server-enforced state machine, default Plan)
-- Middleware wiring (audit + mode enforcement on all tool calls)
+### Tools Registered
 
-### Completed (Phase 1a)
+| Tool | Tier | Description |
+|------|------|-------------|
+| `list_sessions` | T0 | Enumerate available session logs with optional date/project filters |
+| `session_summary` | T0 | High-level summary of a session (event counts, duration, tools used, anomaly count) |
+| `read_session` | T0 | Parsed event stream for a session at three verbosity levels (summary/events/full) |
+| `search_sessions` | T0 | Case-insensitive keyword search across all sessions |
+| `extract_commits` | T0 | Find git commits made during a session or date range |
+| `detect_anomalies` | T0 | Flag unusual patterns via 7 mechanical rules (no judgment calls) |
+| `diff_intent_vs_execution` | T0 | Compare first prompt intent vs actual files touched |
+
+All tools are Tier 0 (read-only, always available). Registered via `register_tool_tier()` in `src/aos_cc_mcp/tools.py`.
+
+### Completed (Phase 1a + 1b + 2a)
 - Repo scaffolding (pyproject.toml, src layout, tests)
-- FastMCP server skeleton (zero tools, imports and instantiates cleanly)
+- FastMCP server skeleton with stdio transport
 - JSONL session log parser (reads real CC session files, produces typed events)
-- Tests against real fixture data
+- Append-only audit log, kill switch, bearer token auth, mode system
+- Middleware wiring (audit + mode enforcement on all tool calls)
+- 7 Tier 0 read-only tools with full test coverage
+- Anomaly detection engine (7 rules, hand-crafted fixtures)
+- Tests against real fixture data (139 tests)
 
 ### Out of scope (deferred to later phases)
-- MCP tools (no @mcp.tool decorators)
 - Network (no Tailscale, no HTTP exposure)
-- Writes (no file writes, no session launches)
+- Write tools (Tier 1 and Tier 2)
 - Session tokens for YOLO mode
 - Client-side confirmation mechanism for Approve mode
 
@@ -79,6 +89,6 @@ See [DEFERRED.md](DEFERRED.md) for the full phase roadmap.
 ## Agent Instructions
 - Read this CLAUDE.md before starting any work on this repo.
 - Do not lift phase or tier restrictions without an explicit prompt authorizing it.
-- Do not add @mcp.tool decorators until Phase 2 authorizes it.
+- Do not add Tier 1+ tools without an explicit prompt authorizing it.
 - Do not add Tier 3 capabilities ever without a new constitutional prompt.
 - All tests must pass before reporting done.

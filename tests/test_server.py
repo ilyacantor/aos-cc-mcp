@@ -1,6 +1,6 @@
 """Tests for the MCP server.
 
-Phase 1b: verify server imports, kill switch, middleware wiring, zero tools.
+Phase 2a: verify server imports, kill switch, middleware wiring, tool registration.
 """
 
 from __future__ import annotations
@@ -32,14 +32,26 @@ class TestServerInstantiation:
         assert mcp.name == "aos-cc-mcp"
 
 
-class TestZeroTools:
-    """Server has zero tools registered (explicit Phase 1b scope verification)."""
+class TestToolRegistration:
+    """Server has exactly the Phase 2a tools registered."""
 
-    def test_no_tools_registered(self) -> None:
+    def test_seven_tools_registered(self) -> None:
         from aos_cc_mcp.server import mcp
 
         tools = asyncio.run(mcp.list_tools())
-        assert len(tools) == 0, f"Expected 0 tools, found {len(tools)}"
+        assert len(tools) == 7, f"Expected 7 tools, found {len(tools)}"
+
+    def test_expected_tool_names(self) -> None:
+        from aos_cc_mcp.server import mcp
+
+        tools = asyncio.run(mcp.list_tools())
+        names = {t.name for t in tools}
+        expected = {
+            "list_sessions", "session_summary", "read_session",
+            "search_sessions", "extract_commits", "detect_anomalies",
+            "diff_intent_vs_execution",
+        }
+        assert names == expected
 
 
 class TestKillSwitch:

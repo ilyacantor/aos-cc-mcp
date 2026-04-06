@@ -1,0 +1,6 @@
+{"type": "permission-mode", "permissionMode": "default", "sessionId": "error-test"}
+{"type": "user", "message": {"role": "user", "content": "run the pipeline"}, "timestamp": "2026-04-06T10:00:00Z"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_bash1", "name": "Bash", "input": {"command": "python run_pipeline.py"}}]}, "timestamp": "2026-04-06T10:01:00Z"}
+{"type": "user", "message": {"content": [{"tool_use_id": "toolu_bash1", "type": "tool_result", "content": [{"type": "text", "text": "ConnectionError: could not reach DCL at localhost:8004"}], "is_error": true}]}, "timestamp": "2026-04-06T10:01:01Z"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_bash2", "name": "Bash", "input": {"command": "python run_something_else.py"}}]}, "timestamp": "2026-04-06T10:01:10Z"}
+{"type": "user", "message": {"content": [{"tool_use_id": "toolu_bash2", "type": "tool_result", "content": [{"type": "text", "text": "OK"}]}]}, "timestamp": "2026-04-06T10:01:11Z"}

@@ -1,0 +1,8 @@
+{"type": "permission-mode", "permissionMode": "default", "sessionId": "hook-test"}
+{"type": "user", "message": {"role": "user", "content": "fix the lint errors"}, "timestamp": "2026-04-06T10:00:00Z"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_commit1", "name": "Bash", "input": {"command": "git commit -m 'fix lint'"}}]}, "timestamp": "2026-04-06T10:01:00Z"}
+{"type": "user", "message": {"content": [{"tool_use_id": "toolu_commit1", "type": "tool_result", "content": [{"type": "text", "text": "pre-commit hook failed\nERROR: hook 'black' returned exit code 1"}], "is_error": true}]}, "timestamp": "2026-04-06T10:01:01Z"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_edit1", "name": "Edit", "input": {"file_path": "/code/main.py", "old_string": "x=1", "new_string": "x = 1"}}]}, "timestamp": "2026-04-06T10:01:10Z"}
+{"type": "user", "message": {"content": [{"tool_use_id": "toolu_edit1", "type": "tool_result", "content": [{"type": "text", "text": "File edited successfully"}]}]}, "timestamp": "2026-04-06T10:01:11Z"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_commit2", "name": "Bash", "input": {"command": "git commit -m 'fix lint'"}}]}, "timestamp": "2026-04-06T10:01:20Z"}
+{"type": "user", "message": {"content": [{"tool_use_id": "toolu_commit2", "type": "tool_result", "content": [{"type": "text", "text": "[master abc1234] fix lint\n 1 file changed"}]}]}, "timestamp": "2026-04-06T10:01:21Z"}

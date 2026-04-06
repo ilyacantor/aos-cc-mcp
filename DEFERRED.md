@@ -4,23 +4,10 @@ Each phase lands as its own prompt, its own CC session, its own review. Phases a
 
 ---
 
-## Phase 1b: Security Foundation
-- Append-only audit log (all operations logged, no log mutation)
-- Kill switch env var (AOS_CC_MCP_DISABLED — server refuses all requests when set)
-- Bearer token auth (server rejects unauthenticated requests)
-- Mode system implementation (Plan/Approve/YOLO with server-enforced state machine)
-- Default mode on startup is always Plan
-
-## Phase 2: Tier 0 Read Tools
-- `list_sessions` — enumerate available session logs
-- `session_summary` — high-level summary of a session (event counts, duration, tools used)
-- `read_session` — full parsed event stream for a session
-- `search_sessions` — keyword/regex search across sessions
-- `extract_commits` — find git commits made during a session
-- `detect_anomalies` — flag unusual patterns (silent fallbacks, repeated failures, scope creep)
-- `diff_intent_vs_execution` — compare what was asked vs what was done
+## Phase 2b: Network + Coordinator Registration
 - Tailscale Funnel integration (expose server to coordinator over Tailscale)
 - Coordinator project registration (register this server with the AOS Coordinator on claude.ai)
+- Network transport auth guard (refuse to start with HTTP transport when AOS_CC_MCP_TOKEN is unset)
 
 ## Phase 3: Tier 1 Write Tools
 - `append_to_deferred` — append entries to DEFERRED.md files in repos under ~/code/
@@ -41,9 +28,11 @@ Each phase lands as its own prompt, its own CC session, its own review. Phases a
 
 ---
 
+## Deferred from Phase 2a
+
+- `scope_expansion` anomaly rule reserved but not implemented in Phase 2a; requires prompt-intent-to-file-edit correlation beyond current regex heuristic; revisit in Phase 3+ or after coordinator runtime data suggests a concrete rule shape.
+
 ## Parser observations from Phase 1a
 
 - Assistant text/thinking blocks are currently classified as Unknown. If the coordinator later needs to reason about assistant reasoning (not just actions), add an AssistantMessage event type.
 - CC harness-internal event types observed in real fixtures: custom-title, agent-name, queue-operation. Currently classified as Unknown with raw preserved. Revisit if subagent state becomes relevant to anomaly detection.
-- Phase 2 `detect_anomalies` tool must correlate Bash ToolCall events with their corresponding ToolResult events by tool_use_id to determine command success/failure as a single fact.
-- Audit log denial entries embed tier in error string rather than as a structured details field. Attempt entries use `details={"tier": tier.value}`. Make denial entries structurally consistent during Phase 2 when `detect_anomalies` will need to query audit logs programmatically.
