@@ -1,0 +1,21 @@
+[project]
+name = "aos-cc-mcp"
+version = "0.1.0"
+description = "MCP server exposing Claude Code session logs and scoped write capabilities to the AOS Coordinator."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=3.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[project.scripts]
+aos-cc-mcp = "aos_cc_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
