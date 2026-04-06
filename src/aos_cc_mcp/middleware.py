@@ -61,51 +61,63 @@ class AuditMiddleware(Middleware):
             details={"tier": tier.value if tier else "unregistered"},
         )
 
-        # If tier is registered, enforce mode rules
-        if tier is not None:
-            from .modes import ToolDecision
+        # Unregistered tools are blocked — fail safe
+        if tier is None:
+            self._audit.log(
+                operation=f"call_tool:{tool_name}",
+                mode=mode.value,
+                success=False,
+                error="tool not registered in tier registry — add register_tool_tier() call during tool definition",
+            )
+            raise PermissionError(
+                f"Tool '{tool_name}' is not registered in the tier registry. "
+                "Add a register_tool_tier() call during tool definition."
+            )
 
-            decision = self._modes.evaluate(tier)
+        # Enforce mode rules against registered tier
+        from .modes import ToolDecision
 
-            if decision == ToolDecision.BLOCKED_BY_TIER:
-                self._audit.log(
-                    operation=f"call_tool:{tool_name}",
-                    mode=mode.value,
-                    success=False,
-                    error=f"Tier {tier.value} is constitutionally prohibited",
-                )
-                raise PermissionError(
-                    f"Tool '{tool_name}' is Tier {tier.value} — constitutionally prohibited. "
-                    "This restriction cannot be lifted without a new constitutional prompt."
-                )
+        decision = self._modes.evaluate(tier)
 
-            if decision == ToolDecision.BLOCKED_BY_MODE:
-                self._audit.log(
-                    operation=f"call_tool:{tool_name}",
-                    mode=mode.value,
-                    success=False,
-                    error=f"Tier {tier.value} blocked in {mode.value} mode",
-                )
-                raise PermissionError(
-                    f"Tool '{tool_name}' is Tier {tier.value} — not allowed in {mode.value} mode. "
-                    f"Current mode: {mode.value}. Required: approve or yolo."
-                )
+        if decision == ToolDecision.BLOCKED_BY_TIER:
+            self._audit.log(
+                operation=f"call_tool:{tool_name}",
+                mode=mode.value,
+                success=False,
+                error=f"Tier {tier.value} is constitutionally prohibited",
+            )
+            raise PermissionError(
+                f"Tool '{tool_name}' is Tier {tier.value} — constitutionally prohibited. "
+                "This restriction cannot be lifted without a new constitutional prompt."
+            )
 
-            if decision == ToolDecision.NEEDS_CONFIRMATION:
-                # In Phase 1b, we log the need for confirmation but allow the call.
-                # The actual confirmation mechanism (client-side) lands in Phase 3.
-                self._audit.log(
-                    operation=f"call_tool:{tool_name}:confirmation_required",
-                    mode=mode.value,
-                    details={"tier": tier.value, "note": "confirmation mechanism deferred to Phase 3"},
-                )
-                logger.warning(
-                    "Tool '%s' (Tier %s) needs confirmation in %s mode — "
-                    "confirmation mechanism not yet implemented (Phase 3)",
-                    tool_name,
-                    tier.value,
-                    mode.value,
-                )
+        if decision == ToolDecision.BLOCKED_BY_MODE:
+            self._audit.log(
+                operation=f"call_tool:{tool_name}",
+                mode=mode.value,
+                success=False,
+                error=f"Tier {tier.value} blocked in {mode.value} mode",
+            )
+            raise PermissionError(
+                f"Tool '{tool_name}' is Tier {tier.value} — not allowed in {mode.value} mode. "
+                f"Current mode: {mode.value}. Required: approve or yolo."
+            )
+
+        if decision == ToolDecision.NEEDS_CONFIRMATION:
+            # In Phase 1b, we log the need for confirmation but allow the call.
+            # The actual confirmation mechanism (client-side) lands in Phase 3.
+            self._audit.log(
+                operation=f"call_tool:{tool_name}:confirmation_required",
+                mode=mode.value,
+                details={"tier": tier.value, "note": "confirmation mechanism deferred to Phase 3"},
+            )
+            logger.warning(
+                "Tool '%s' (Tier %s) needs confirmation in %s mode — "
+                "confirmation mechanism not yet implemented (Phase 3)",
+                tool_name,
+                tier.value,
+                mode.value,
+            )
 
         result = await call_next(context)
 

@@ -36,6 +36,9 @@ Launch CC sessions, stage files for review, create new files. Requires Approve o
 
 Tier 3 is not "deferred." It is prohibited at the constitutional level. Adding any Tier 3 capability requires a new prompt, a new review, and explicit lifting of the prohibition. Do not add Tier 3 tools under any circumstance in any future phase without an explicit prompt authorizing it.
 
+### Auth footgun — read before enabling network transport
+When `AOS_CC_MCP_TOKEN` is unset, the server accepts all connections with zero authentication. This is acceptable for local stdio transport during development. It is a critical vulnerability if the server is exposed via HTTP, Tailscale Funnel, or any other network transport without setting the token. Phase 2 enables network transport. Before enabling any network transport, verify `AOS_CC_MCP_TOKEN` is set to a non-empty value. The server should refuse to start with network transport enabled while the token is unset — this check will be added in Phase 2.
+
 ### Phase-Gating
 This repo is phase-gated. Each phase lands as its own prompt, its own CC session, its own review. Phases are not batched. Any future CC session working on this repo must read this CLAUDE.md at startup and must not lift phase or tier restrictions without an explicit prompt authorizing it.
 

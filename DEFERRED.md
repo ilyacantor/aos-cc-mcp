@@ -46,3 +46,4 @@ Each phase lands as its own prompt, its own CC session, its own review. Phases a
 - Assistant text/thinking blocks are currently classified as Unknown. If the coordinator later needs to reason about assistant reasoning (not just actions), add an AssistantMessage event type.
 - CC harness-internal event types observed in real fixtures: custom-title, agent-name, queue-operation. Currently classified as Unknown with raw preserved. Revisit if subagent state becomes relevant to anomaly detection.
 - Phase 2 `detect_anomalies` tool must correlate Bash ToolCall events with their corresponding ToolResult events by tool_use_id to determine command success/failure as a single fact.
+- Audit log denial entries embed tier in error string rather than as a structured details field. Attempt entries use `details={"tier": tier.value}`. Make denial entries structurally consistent during Phase 2 when `detect_anomalies` will need to query audit logs programmatically.

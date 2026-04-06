@@ -43,16 +43,34 @@ class ModeManager:
 
     Always starts in Plan mode. Mode transitions are explicit.
     Tier 3 tools are always blocked regardless of mode.
+    When readonly is True, set_mode() is a no-op — mode stays Plan.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, readonly: bool = False) -> None:
         self._mode = Mode.PLAN
+        self._readonly = readonly
+        if readonly:
+            logger.warning(
+                "READ-ONLY MODE ACTIVE — mode locked to Plan, "
+                "writes disabled regardless of client requests"
+            )
 
     @property
     def mode(self) -> Mode:
         return self._mode
 
+    @property
+    def readonly(self) -> bool:
+        return self._readonly
+
     def set_mode(self, mode: Mode) -> None:
+        if self._readonly:
+            logger.warning(
+                "Mode change to %s blocked: AOS_CC_MCP_READONLY is active — "
+                "mode locked to Plan",
+                mode.value,
+            )
+            return
         old = self._mode
         self._mode = mode
         logger.info("Mode changed: %s -> %s", old.value, mode.value)

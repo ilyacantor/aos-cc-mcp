@@ -21,9 +21,17 @@ from .modes import ModeManager
 logger = logging.getLogger(__name__)
 
 KILL_SWITCH_ENV = "AOS_CC_MCP_DISABLED"
+READONLY_ENV = "AOS_CC_MCP_READONLY"
+
+_TRUTHY = {"1", "true", "yes"}
+
+
+def _is_truthy(val: str | None) -> bool:
+    return val is not None and val.strip().lower() in _TRUTHY
+
 
 # --- Shared state ---
-mode_manager = ModeManager()
+mode_manager = ModeManager(readonly=_is_truthy(os.environ.get(READONLY_ENV)))
 audit_log = AuditLog()
 
 

@@ -113,6 +113,39 @@ class TestYoloModeAllowsWrites:
         assert mm.evaluate(Tier.T2) == ToolDecision.ALLOWED
 
 
+class TestReadonlyMode:
+    """When readonly=True, set_mode() is a no-op and mode stays Plan."""
+
+    def test_readonly_starts_in_plan(self) -> None:
+        mm = ModeManager(readonly=True)
+        assert mm.mode == Mode.PLAN
+
+    def test_readonly_flag_is_set(self) -> None:
+        mm = ModeManager(readonly=True)
+        assert mm.readonly is True
+
+    def test_non_readonly_flag_is_false(self) -> None:
+        mm = ModeManager()
+        assert mm.readonly is False
+
+    def test_set_mode_is_noop_when_readonly(self) -> None:
+        mm = ModeManager(readonly=True)
+        mm.set_mode(Mode.YOLO)
+        assert mm.mode == Mode.PLAN
+
+    def test_set_mode_to_approve_is_noop_when_readonly(self) -> None:
+        mm = ModeManager(readonly=True)
+        mm.set_mode(Mode.APPROVE)
+        assert mm.mode == Mode.PLAN
+
+    def test_multiple_set_mode_calls_stay_plan(self) -> None:
+        mm = ModeManager(readonly=True)
+        mm.set_mode(Mode.APPROVE)
+        mm.set_mode(Mode.YOLO)
+        mm.set_mode(Mode.APPROVE)
+        assert mm.mode == Mode.PLAN
+
+
 class TestFullModeMatrix:
     """Complete matrix: every mode x every tier."""
 
