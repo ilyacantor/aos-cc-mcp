@@ -47,7 +47,7 @@ This repo is phase-gated. Each phase lands as its own prompt, its own CC session
 
 ---
 
-## Current Phase: 2a — Tier 0 Read Tools
+## Current Phase: 2b — Network Transport + Coordinator Readiness
 
 ### Tools Registered
 
@@ -63,7 +63,21 @@ This repo is phase-gated. Each phase lands as its own prompt, its own CC session
 
 All tools are Tier 0 (read-only, always available). Registered via `register_tool_tier()` in `src/aos_cc_mcp/tools.py`.
 
-### Completed (Phase 1a + 1b + 2a + 2a.1)
+### Transport Configuration
+
+Transport is selected via `AOS_CC_MCP_TRANSPORT` environment variable:
+- `stdio` (default) — local stdio transport, no token required.
+- `http` — Streamable HTTP on 127.0.0.1:8765, bearer token required.
+
+HTTP transport refuses to start when `AOS_CC_MCP_TOKEN` is unset. See `.env.example` for configuration template.
+
+The server reads `.env` from the repo root via python-dotenv on startup.
+
+### Process Management
+
+The server runs under pm2 (`ecosystem.config.cjs`). pm2 handles autorestart and log management.
+
+### Completed (Phase 1a + 1b + 2a + 2a.1 + 2b)
 - Repo scaffolding (pyproject.toml, src layout, tests)
 - FastMCP server skeleton with stdio transport
 - JSONL session log parser (reads real CC session files, produces typed events)
@@ -72,10 +86,10 @@ All tools are Tier 0 (read-only, always available). Registered via `register_too
 - 7 Tier 0 read-only tools with full test coverage
 - Anomaly detection engine (7 rules, hand-crafted fixtures)
 - Phase 2a.1 reshape: datetime fixes, anomaly false positive reduction, git ls-files lookup for diff_intent_vs_execution, field renames, commit_count, tool_use_id correlation
-- 175 tests against real fixture data
+- Phase 2b: Streamable HTTP transport (env var toggle), token enforcement for HTTP, python-dotenv, pm2 supervision, Tailscale Funnel exposure, coordinator handoff doc
+- 178 tests against real fixture data
 
 ### Out of scope (deferred to later phases)
-- Network (no Tailscale, no HTTP exposure)
 - Write tools (Tier 1 and Tier 2)
 - Session tokens for YOLO mode
 - Client-side confirmation mechanism for Approve mode

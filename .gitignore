@@ -15,3 +15,4 @@ wheels/
 # Environment
 .env
 .env.*
+!.env.example
