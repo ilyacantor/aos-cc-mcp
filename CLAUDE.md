@@ -41,9 +41,16 @@ This repo is phase-gated. Each phase lands as its own prompt, its own CC session
 
 ---
 
-## Current Phase: 1a — Scaffolding and JSONL Parser
+## Current Phase: 1b — Security Foundation
 
-### In scope
+### In scope (Phase 1b)
+- Append-only audit log (all operations logged, no log mutation)
+- Kill switch env var (AOS_CC_MCP_DISABLED — server refuses to start when set)
+- Bearer token auth (AOS_CC_MCP_TOKEN env var — rejects unauthenticated HTTP requests)
+- Mode system (Plan/Approve/YOLO with server-enforced state machine, default Plan)
+- Middleware wiring (audit + mode enforcement on all tool calls)
+
+### Completed (Phase 1a)
 - Repo scaffolding (pyproject.toml, src layout, tests)
 - FastMCP server skeleton (zero tools, imports and instantiates cleanly)
 - JSONL session log parser (reads real CC session files, produces typed events)
@@ -51,12 +58,10 @@ This repo is phase-gated. Each phase lands as its own prompt, its own CC session
 
 ### Out of scope (deferred to later phases)
 - MCP tools (no @mcp.tool decorators)
-- Auth (no bearer tokens, no session tokens)
-- Network (no Tailscale, no HTTP)
+- Network (no Tailscale, no HTTP exposure)
 - Writes (no file writes, no session launches)
-- Mode system (no Plan/Approve/YOLO enforcement)
-- Audit log
-- Kill switch
+- Session tokens for YOLO mode
+- Client-side confirmation mechanism for Approve mode
 
 See [DEFERRED.md](DEFERRED.md) for the full phase roadmap.
 
