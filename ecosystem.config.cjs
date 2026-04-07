@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "aos-cc-mcp",
       script: "uv",
-      args: "run python -m aos_cc_mcp.server",
+      args: "run python -m aos_cc_mcp",
       cwd: "/home/ilyac/code/aos-cc-mcp",
       autorestart: true,
       max_restarts: 10,
