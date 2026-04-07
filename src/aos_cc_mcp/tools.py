@@ -44,6 +44,7 @@ register_tool_tier("search_sessions", Tier.T0)
 register_tool_tier("extract_commits", Tier.T0)
 register_tool_tier("detect_anomalies", Tier.T0)
 register_tool_tier("diff_intent_vs_execution", Tier.T0)
+register_tool_tier("set_mode", Tier.T0)
 
 # Tier 2 write tools
 register_tool_tier("dispatch_cc_session", Tier.T2)
@@ -887,7 +888,39 @@ def diff_intent_vs_execution(session_id: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Tool 8: dispatch_cc_session (Tier 2)
+# Tool 8: set_mode (Tier 0 — the mode gate itself, not gated by mode)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def set_mode(mode: str) -> dict[str, str]:
+    """Switch the server operating mode.
+
+    Tier 0 — always callable. The mode change is the authorization gate,
+    not the tool itself.
+
+    Args:
+        mode: Target mode — "plan", "approve", or "yolo".
+
+    Returns:
+        Dict with previous_mode and current_mode.
+    """
+    from .modes import Mode
+    from .server import mode_manager
+
+    mode_lower = mode.strip().lower()
+    try:
+        target = Mode(mode_lower)
+    except ValueError:
+        valid = ", ".join(m.value for m in Mode)
+        raise ValueError(f"Invalid mode '{mode}'. Valid modes: {valid}")
+
+    previous = mode_manager.mode.value
+    mode_manager.set_mode(target)
+    return {"previous_mode": previous, "current_mode": mode_manager.mode.value}
+
+
+# ---------------------------------------------------------------------------
+# Tool 9: dispatch_cc_session (Tier 2)
 # ---------------------------------------------------------------------------
 
 @mcp.tool()

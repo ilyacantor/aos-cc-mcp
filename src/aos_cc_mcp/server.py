@@ -58,7 +58,7 @@ def _get_transport() -> str:
 
 
 # --- Shared state ---
-mode_manager = ModeManager(readonly=_is_truthy(os.environ.get(READONLY_ENV)))
+mode_manager = ModeManager(readonly=_is_truthy(os.environ.get(READONLY_ENV)))  # file-backed, no env var for mode
 audit_log = AuditLog()
 
 
