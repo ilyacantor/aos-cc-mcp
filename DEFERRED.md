@@ -17,8 +17,12 @@ Each phase lands as its own prompt, its own CC session, its own review. Phases a
 - Rate limits (cap write frequency)
 - Blast radius path validation (whitelist of writable paths, enforced at server level)
 
-## Phase 4: Tier 2 Write Tools
-- `launch_cc_session` — start a new Claude Code session with a prompt
+## Phase 3a: First Tier 2 Write Tool (COMPLETED)
+- `dispatch_cc_session` — spawns headless CC subprocess, returns session ID for follow-up reads
+- Constitutional constraint discipline established: closed-enum arguments, hardcoded prefixes, no shell interpolation, structured returns, audit without prompt leaking
+- All future Tier 2 tools must follow the same constraint discipline
+
+## Phase 4: Additional Tier 2 Write Tools
 - `stage_files_for_review` — prepare files for human review before commit
 - `create_file` — create new files (not overwrite)
 - Session token mechanism for YOLO mode (scoped, time-limited, revocable)

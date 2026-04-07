@@ -45,6 +45,9 @@ register_tool_tier("extract_commits", Tier.T0)
 register_tool_tier("detect_anomalies", Tier.T0)
 register_tool_tier("diff_intent_vs_execution", Tier.T0)
 
+# Tier 2 write tools
+register_tool_tier("dispatch_cc_session", Tier.T2)
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -881,3 +884,44 @@ def diff_intent_vs_execution(session_id: str) -> dict[str, Any]:
         "extraction_mode": extraction_mode,
         "confidence": "heuristic",
     }
+
+
+# ---------------------------------------------------------------------------
+# Tool 8: dispatch_cc_session (Tier 2)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def dispatch_cc_session(
+    prompt: str,
+    repo: str,
+    timeout_seconds: int = 600,
+    model: str | None = None,
+    confirm_token: str | None = None,
+) -> dict[str, Any]:
+    """Dispatch a headless Claude Code session and return the result.
+
+    Tier 2 — requires Approve or YOLO mode. Blocked in Plan mode.
+    Spawns claude -p <prompt> in the specified repo, waits for completion,
+    and returns session ID, exit code, and output tail for follow-up reads.
+
+    Args:
+        prompt: The prompt to send to Claude Code (max 50,000 chars).
+        repo: Repo name under ~/code/ (alphanumeric, hyphens, underscores only).
+        timeout_seconds: Max wait in seconds (30-1800, default 600). Clamped if out of range.
+        model: Optional model override — "sonnet", "opus", or "haiku".
+        confirm_token: Required in Approve mode, ignored in YOLO mode.
+
+    Returns:
+        Dict with session_id, exit_code, duration_seconds, timed_out,
+        stdout_tail, stderr_tail, session_log_path, and warnings.
+    """
+    from .dispatch import run_dispatch
+    from .server import audit_log
+
+    return run_dispatch(
+        prompt=prompt,
+        repo=repo,
+        timeout_seconds=timeout_seconds,
+        model=model,
+        audit_log=audit_log,
+    )

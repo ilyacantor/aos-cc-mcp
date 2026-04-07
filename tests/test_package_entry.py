@@ -37,7 +37,7 @@ class TestPackageEntryPoint:
             f"!= tools.mcp id={id(mcp_from_tools)}"
         )
 
-    def test_seven_tools_registered_after_import(self) -> None:
+    def test_eight_tools_registered_after_import(self) -> None:
         from aos_cc_mcp.server import mcp
 
         import aos_cc_mcp.tools  # noqa: F401
@@ -47,7 +47,7 @@ class TestPackageEntryPoint:
         expected = {
             "list_sessions", "session_summary", "read_session",
             "search_sessions", "extract_commits", "detect_anomalies",
-            "diff_intent_vs_execution",
+            "diff_intent_vs_execution", "dispatch_cc_session",
         }
-        assert len(tools) == 7, f"Expected 7 tools, got {len(tools)}"
+        assert len(tools) == 8, f"Expected 8 tools, got {len(tools)}"
         assert names == expected, f"Tool name mismatch: {names ^ expected}"

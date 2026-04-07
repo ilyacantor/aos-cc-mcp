@@ -47,7 +47,7 @@ This repo is phase-gated. Each phase lands as its own prompt, its own CC session
 
 ---
 
-## Current Phase: 2b — Network Transport + Coordinator Readiness
+## Current Phase: 3a — First Tier 2 Write Tool
 
 ### Tools Registered
 
@@ -60,8 +60,20 @@ This repo is phase-gated. Each phase lands as its own prompt, its own CC session
 | `extract_commits` | T0 | Find git commits made during a session or date range |
 | `detect_anomalies` | T0 | Flag unusual patterns via 7 mechanical rules (no judgment calls) |
 | `diff_intent_vs_execution` | T0 | Compare first prompt intent vs actual files touched |
+| `dispatch_cc_session` | T2 | Spawn a headless CC subprocess with a prompt, wait for completion, return session ID |
 
-All tools are Tier 0 (read-only, always available). Registered via `register_tool_tier()` in `src/aos_cc_mcp/tools.py`.
+Tier 0 tools are read-only and always available. Tier 2 tools require Approve or YOLO mode (blocked in Plan). All tools registered via `register_tool_tier()` in `src/aos_cc_mcp/tools.py`.
+
+### Tier 2 Tools — Constitutional Constraints
+
+`dispatch_cc_session` is the first Tier 2 tool. It spawns `claude -p <prompt>` as a subprocess in a repo under `/home/ilyac/code/`, waits for completion, and returns the session ID for follow-up reads via the Tier 0 tools. Implementation lives in `src/aos_cc_mcp/dispatch.py`.
+
+Constitutional constraints on this tool (and any future Tier 2 tools following this pattern):
+- **No shell interpolation.** The prompt is passed as a single argv element to `subprocess.Popen` in list form. Never `shell=True`, never string interpolation.
+- **Closed-enum arguments.** The `model` parameter is restricted to `{sonnet, opus, haiku}`. The `repo` parameter is restricted to `[a-zA-Z0-9_-]` and resolved against the hardcoded prefix `/home/ilyac/code/`.
+- **No surface expansion.** No parameters that let the caller influence subprocess argv, env, cwd, or stdin beyond the spec.
+- **Structured returns.** Every response is a dict with fixed keys. Errors are structured, not exceptions.
+- **Audit without leaking.** The tool writes a completion entry to the audit log with dispatch metadata (repo, exit_code, duration, session_id, timed_out) but never logs the prompt content in the completion entry (already captured by middleware).
 
 ### Transport Configuration
 
@@ -77,7 +89,7 @@ The server reads `.env` from the repo root via python-dotenv on startup.
 
 The server runs under pm2 (`ecosystem.config.cjs`). pm2 handles autorestart and log management.
 
-### Completed (Phase 1a + 1b + 2a + 2a.1 + 2b)
+### Completed (Phase 1a + 1b + 2a + 2a.1 + 2b + 3a)
 - Repo scaffolding (pyproject.toml, src layout, tests)
 - FastMCP server skeleton with stdio transport
 - JSONL session log parser (reads real CC session files, produces typed events)
@@ -87,10 +99,11 @@ The server runs under pm2 (`ecosystem.config.cjs`). pm2 handles autorestart and 
 - Anomaly detection engine (7 rules, hand-crafted fixtures)
 - Phase 2a.1 reshape: datetime fixes, anomaly false positive reduction, git ls-files lookup for diff_intent_vs_execution, field renames, commit_count, tool_use_id correlation
 - Phase 2b: Streamable HTTP transport (env var toggle), token enforcement for HTTP, python-dotenv, pm2 supervision, Tailscale Funnel exposure, coordinator handoff doc
-- 178 tests against real fixture data
+- Phase 3a: `dispatch_cc_session` — first Tier 2 write tool with constitutional constraint discipline
 
 ### Out of scope (deferred to later phases)
-- Write tools (Tier 1 and Tier 2)
+- Tier 1 write tools (append_to_deferred, write_coordinator_note, log_decision)
+- Additional Tier 2 tools (stage_files_for_review, create_file)
 - Session tokens for YOLO mode
 - Client-side confirmation mechanism for Approve mode
 

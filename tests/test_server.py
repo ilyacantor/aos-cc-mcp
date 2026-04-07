@@ -35,13 +35,13 @@ class TestServerInstantiation:
 
 
 class TestToolRegistration:
-    """Server has exactly the Phase 2a tools registered."""
+    """Server has exactly the expected tools registered."""
 
-    def test_seven_tools_registered(self) -> None:
+    def test_eight_tools_registered(self) -> None:
         from aos_cc_mcp.server import mcp
 
         tools = asyncio.run(mcp.list_tools())
-        assert len(tools) == 7, f"Expected 7 tools, found {len(tools)}"
+        assert len(tools) == 8, f"Expected 8 tools, found {len(tools)}"
 
     def test_expected_tool_names(self) -> None:
         from aos_cc_mcp.server import mcp
@@ -51,7 +51,7 @@ class TestToolRegistration:
         expected = {
             "list_sessions", "session_summary", "read_session",
             "search_sessions", "extract_commits", "detect_anomalies",
-            "diff_intent_vs_execution",
+            "diff_intent_vs_execution", "dispatch_cc_session",
         }
         assert names == expected
 
