@@ -123,3 +123,12 @@ See [DEFERRED.md](DEFERRED.md) for the full phase roadmap.
 - Do not add Tier 1+ tools without an explicit prompt authorizing it.
 - Do not add Tier 3 capabilities ever without a new constitutional prompt.
 - All tests must pass before reporting done.
+
+---
+
+# Branch hygiene (B17)
+
+- Feature branches are merged to dev and deleted in the same session they are created.
+- Unmerged branches at session end are a B17 failure and must be reported.
+- `--no-verify` is banned. If a hook blocks a legitimate change, fix the hook scope, then commit.
+- Session start: run `git fetch --all --prune && git branch -a` and report stale branches before new work.
