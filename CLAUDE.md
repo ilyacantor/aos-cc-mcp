@@ -132,3 +132,12 @@ See [DEFERRED.md](DEFERRED.md) for the full phase roadmap.
 - Unmerged branches at session end are a B17 failure and must be reported.
 - `--no-verify` is banned. If a hook blocks a legitimate change, fix the hook scope, then commit.
 - Session start: run `git fetch --all --prune && git branch -a` and report stale branches before new work.
+
+## Test result reporting
+
+Before claiming a suite is green/passing/done:
+1. Quote the final pytest summary line verbatim ("X passed, Y failed in Zs")
+2. If that line is absent from tool output, state: "Suite did not complete. Partial signal: <what was actually observed>"
+3. Never map per-test or per-file pass counts to suite-level claims. "test_smoke 6/6" = "6 of 6 smoke tests passed; full suite status unknown" — never "green"
+4. No "honest deviation" / "spot-checked" / "looks good" framing as a substitute for the summary line
+5. Same rule for any long-running command: no completion claim without the final stdout/exit-code evidence in-context
